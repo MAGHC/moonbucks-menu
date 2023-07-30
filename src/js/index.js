@@ -1,5 +1,6 @@
 import { $ } from './utils/dom.js';
 import { store } from './store/index.js';
+import MenuApi from './api/index.js';
 
 function App() {
   let menu = {
@@ -12,11 +13,13 @@ function App() {
 
   let currentCategory = 'espresso';
 
-  const render = () => {
+  const render = async () => {
+    menu[currentCategory] = await MenuApi.getAllMenuByCategory(currentCategory);
+
     const template = menu[currentCategory]
-      .map((item, key) => {
-        return `<li data-menuId=${key} class="menu-list-item d-flex items-center py-2">
-    <span  class=" ${item.soldOut ? 'sold-out' : ''} w-100 pl-2 menu-name">${item.name}</span>
+      .map((item) => {
+        return `<li data-menuId=${item.id} class="menu-list-item d-flex items-center py-2">
+    <span  class=" ${item.isSoldOut ? 'sold-out' : ''} w-100 pl-2 menu-name">${item.name}</span>
     <button
     type="button"
     class="bg-gray-50 text-gray-500 text-sm mr-1 menu-sold-out-button"
@@ -43,48 +46,47 @@ function App() {
     updateMenuCount();
   };
 
-  const addMenuName = () => {
+  const addMenuName = async () => {
     const menuName = $('#menu-name').value;
-
-    menu[currentCategory].push({ name: menuName });
-
-    store.setLocalStorage(menu);
 
     if (menuName === '') {
       alert('빈값X');
       return;
     }
 
+    const isExist = menu[currentCategory].find((menuItem) => menuItem.name === menuName);
+    if (isExist) {
+      alert('이미있다');
+      return;
+    }
+
+    await MenuApi.createMenu(menuName, currentCategory);
+
     $('#menu-name').value = '';
     render();
   };
 
-  const updateMenuName = (e) => {
+  const updateMenuName = async (e) => {
     const menuId = e.target.closest('li').dataset.menuid;
     const $menuName = e.target.closest('li').querySelector('.menu-name');
-    console.log($menuName);
     const edittedValud = prompt('이름변경', $menuName.innerText);
-    menu[currentCategory][menuId].name = edittedValud;
-    store.setLocalStorage(menu);
+    await MenuApi.updateMenu(currentCategory, edittedValud, menuId);
     render();
   };
 
-  const removeMenuName = (e) => {
+  const removeMenuName = async (e) => {
     const confirmed = confirm('삭제?');
     if (confirmed) {
       const menuId = e.target.closest('li').dataset.menuid;
-      menu[currentCategory].splice(menuId, 1);
-
-      store.setLocalStorage(menu);
-
+      await MenuApi.deleteMenu(currentCategory, menuId);
       render();
     }
   };
 
-  const soldOutMenu = (e) => {
+  const soldOutMenu = async (e) => {
     const menuId = e.target.closest('li').dataset.menuid;
-    menu[currentCategory][menuId].soldOut = !menu[currentCategory][menuId].soldOut;
-    store.setLocalStorage(menu);
+
+    await MenuApi.toggleSoldOutMenu(currentCategory, menuId);
     render();
   };
 
@@ -110,6 +112,19 @@ function App() {
       }
     });
 
+    const changeCategory = (e) => {
+      const isCategoryBtn = e.target.classList.contains('cafe-category-name');
+
+      if (isCategoryBtn) {
+        const categoryName = e.target.dataset.categoryName;
+        currentCategory = categoryName;
+
+        $('#category-title').innerText = `${e.target.innerText} 메뉴 관리`;
+        render();
+      }
+      return;
+    };
+
     $('#menu-form').addEventListener('submit', (e) => {
       e.preventDefault();
     });
@@ -121,26 +136,12 @@ function App() {
       addMenuName(e);
     });
 
-    $('nav').addEventListener('click', (e) => {
-      const isCategoryBtn = e.target.classList.contains('cafe-category-name');
-
-      if (isCategoryBtn) {
-        const categoryName = e.target.dataset.categoryName;
-        currentCategory = categoryName;
-
-        $('#category-title').innerText = `${e.target.innerText} 메뉴 관리`;
-        render();
-      }
-      return;
-    });
+    $('nav').addEventListener('click', changeCategory);
   };
 
-  const init = () => {
-    if (store.getLocalStorage()) {
-      menu = store.getLocalStorage();
-      render();
-      initEventListener();
-    }
+  const init = async () => {
+    render();
+    initEventListener();
   };
 
   init();
